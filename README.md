@@ -59,7 +59,7 @@ cp .env.example .env
 
 - `MONGODB_URI` — local: `mongodb://127.0.0.1:27017/campusconnect` — or your Atlas URI.
 - `JWT_SECRET` — any long random string (used to sign tokens).
-- `PORT` — default `5001` (avoids macOS AirPlay using port `5000`).
+- `PORT` — default `5174` (avoids macOS system-reserved ports).
 
 ### Step 3: Start the server
 
@@ -67,7 +67,7 @@ cp .env.example .env
 npm start
 ```
 
-You should see `MongoDB connected` and `Server running on http://localhost:5001`.
+You should see `MongoDB connected` and `Server running on http://localhost:5174`.
 
 ### Step 4: What each backend piece does (teacher-style)
 
@@ -90,7 +90,7 @@ With the server running, use **Terminal** (replace `YOUR_TOKEN` after login).
 ### 1) Register
 
 ```bash
-curl -s -X POST http://localhost:5001/register \
+curl -s -X POST http://localhost:5174/register \
   -H "Content-Type: application/json" \
   -d '{"name":"Test Student","email":"test@college.edu","password":"secret12"}'
 ```
@@ -100,7 +100,7 @@ Copy `token` from the JSON response.
 ### 2) Login
 
 ```bash
-curl -s -X POST http://localhost:5001/login \
+curl -s -X POST http://localhost:5174/login \
   -H "Content-Type: application/json" \
   -d '{"email":"test@college.edu","password":"secret12"}'
 ```
@@ -108,13 +108,13 @@ curl -s -X POST http://localhost:5001/login \
 ### 3) Get profile (needs token)
 
 ```bash
-curl -s http://localhost:5001/me -H "Authorization: Bearer YOUR_TOKEN"
+curl -s http://localhost:5174/me -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
 ### 4) Create post
 
 ```bash
-curl -s -X POST http://localhost:5001/post \
+curl -s -X POST http://localhost:5174/post \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -d '{"text":"Hello from CampusConnect!"}'
@@ -123,13 +123,13 @@ curl -s -X POST http://localhost:5001/post \
 ### 5) List posts
 
 ```bash
-curl -s http://localhost:5001/posts -H "Authorization: Bearer YOUR_TOKEN"
+curl -s http://localhost:5174/posts -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
 ### 6) Like (use a real `postId` from step 5)
 
 ```bash
-curl -s -X POST http://localhost:5001/like \
+curl -s -X POST http://localhost:5174/like \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -d '{"postId":"PASTE_POST_ID_HERE"}'
@@ -138,7 +138,7 @@ curl -s -X POST http://localhost:5001/like \
 ### 7) Comment
 
 ```bash
-curl -s -X POST http://localhost:5001/comment \
+curl -s -X POST http://localhost:5174/comment \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -d '{"postId":"PASTE_POST_ID_HERE","text":"Nice post!"}'
@@ -160,10 +160,10 @@ Open the URL Vite prints (usually `http://localhost:5173`).
 
 ### Step 2: API URL (optional)
 
-By default the client uses `http://localhost:5001`. To override, create `client/.env`:
+By default the client uses `http://localhost:5174`. To override, create `client/.env`:
 
 ```env
-VITE_API_URL=http://localhost:5001
+VITE_API_URL=http://localhost:5174
 ```
 
 ### Step 3: What each frontend piece does
@@ -220,4 +220,4 @@ VITE_API_URL=http://localhost:5001
 
 ## Academic honesty
 
-Use this project to learn: type the code yourself, change variable names, add your own comments, and write your own report. Understanding beats copy-paste.
+Use this project to learn: type the code yourself, change variable names, add your own comments.

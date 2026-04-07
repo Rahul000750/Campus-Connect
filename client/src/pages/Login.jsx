@@ -17,12 +17,21 @@ export default function Login() {
     e.preventDefault();
     setErr('');
     setLoading(true);
+    // #region agent log
+    fetch('http://127.0.0.1:7344/ingest/36f1c759-e85b-4c6f-af35-22613d633138',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'de59f0'},body:JSON.stringify({sessionId:'de59f0',runId:'baseline',hypothesisId:'H4_client_baseurl_mismatch',location:'client/src/pages/Login.jsx:submit:before_request',message:'Client about to call /login',data:{appOrigin:window.location.origin,apiBaseURL:api.defaults?.baseURL||null,email:typeof email==='string'?email.trim().toLowerCase():null},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     try {
       const { data } = await api.post('/login', { email, password });
+      // #region agent log
+      fetch('http://127.0.0.1:7344/ingest/36f1c759-e85b-4c6f-af35-22613d633138',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'de59f0'},body:JSON.stringify({sessionId:'de59f0',runId:'baseline',hypothesisId:'H4_client_baseurl_mismatch',location:'client/src/pages/Login.jsx:submit:success',message:'Client received login success',data:{appOrigin:window.location.origin,apiBaseURL:api.defaults?.baseURL||null},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       navigate('/');
     } catch (error) {
+      // #region agent log
+      fetch('http://127.0.0.1:7344/ingest/36f1c759-e85b-4c6f-af35-22613d633138',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'de59f0'},body:JSON.stringify({sessionId:'de59f0',runId:'baseline',hypothesisId:'H4_client_baseurl_mismatch',location:'client/src/pages/Login.jsx:submit:catch',message:'Client login request failed',data:{appOrigin:window.location.origin,apiBaseURL:api.defaults?.baseURL||null,hasResponse:!!error?.response,status:error?.response?.status||null,axiosCode:error?.code||null,axiosMessage:error?.message||null},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       setErr(error.response?.data?.message || 'Login failed');
     } finally {
       setLoading(false);

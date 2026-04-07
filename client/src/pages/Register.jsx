@@ -23,28 +23,25 @@ export default function Register() {
     }
     setLoading(true);
     try {
+      const { data } = await api.post('/register', { name, email, password });
       // #region agent log
       fetch('http://127.0.0.1:7791/ingest/66c0d595-13f9-432c-adf1-cbc80eb0fcac', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Debug-Session-Id': 'b3a111',
+          'X-Debug-Session-Id': 'd57eee',
         },
         body: JSON.stringify({
-          sessionId: 'b3a111',
-          location: 'client/src/pages/Register.jsx:submit:beforeApiCall',
-          message: 'Register attempt details (no PII)',
-          data: {
-            baseURL: api.defaults.baseURL,
-            hasName: !!name,
-            hasEmail: !!email,
-            passwordLen: password ? String(password).length : 0,
-          },
+          sessionId: 'd57eee',
+          runId: 'post-fix',
+          hypothesisId: 'verify_client_ok',
+          location: 'client/src/pages/Register.jsx:submit:success',
+          message: 'Register API returned success',
+          data: { baseURL: api.defaults?.baseURL || null },
           timestamp: Date.now(),
         }),
       }).catch(() => {});
       // #endregion
-      const { data } = await api.post('/register', { name, email, password });
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       navigate('/');
@@ -54,17 +51,20 @@ export default function Register() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Debug-Session-Id': 'b3a111',
+          'X-Debug-Session-Id': 'd57eee',
         },
         body: JSON.stringify({
-          sessionId: 'b3a111',
+          sessionId: 'd57eee',
+          runId: 'post-fix',
+          hypothesisId: 'verify_client_err',
           location: 'client/src/pages/Register.jsx:submit:catch',
           message: 'Register request failed',
           data: {
+            baseURL: api.defaults?.baseURL || null,
             hasResponse: !!error?.response,
-            status: error?.response?.status,
-            hasServerMessage: !!error?.response?.data?.message,
+            status: error?.response?.status || null,
             axiosCode: error?.code || null,
+            axiosMessage: error?.message || null,
           },
           timestamp: Date.now(),
         }),
@@ -73,7 +73,9 @@ export default function Register() {
       const serverMsg = error.response?.data?.message;
       const baseURL = api.defaults?.baseURL || 'unknown';
       if (!serverMsg && error?.message === 'Network Error') {
-        setErr(`Network Error: cannot reach ${baseURL}/register`);
+        setErr(
+          `Cannot reach the API at ${baseURL}. Start MongoDB, then start the API (port 5174). Restart the Vite dev server after changing proxy or env.`
+        );
       } else {
         setErr(serverMsg || error?.message || 'Registration failed');
       }

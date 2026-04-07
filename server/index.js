@@ -23,32 +23,35 @@ if (!process.env.JWT_SECRET) {
   process.exit(1);
 }
 
-// #region agent log (reliable NDJSON via local file append)
+const app = express();
+const PORT = Number(process.env.PORT) || 5174;
+
+function debugLog(runId, hypothesisId, location, message, data = {}) {
+  fetch('http://127.0.0.1:7344/ingest/36f1c759-e85b-4c6f-af35-22613d633138',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'de59f0'},body:JSON.stringify({sessionId:'de59f0',runId,hypothesisId,location,message,data,timestamp:Date.now()})}).catch(()=>{});
+}
+
+// #region agent log
 const DEBUG_LOG_PATH =
-  '/Users/kunalupadhyay/Campus Connect/.cursor/debug-b3a111.log';
-function agentLog(hypothesisId, location, message, data) {
-  const payload = {
-    sessionId: 'b3a111',
-    runId: 'initial',
-    hypothesisId,
-    location,
-    message,
-    data,
-    timestamp: Date.now(),
-  };
+  '/Users/kunalupadhyay/Campus Connect/.cursor/debug-d57eee.log';
+function sessionLog(hypothesisId, location, message, data = {}) {
   try {
-    const dir = require('path').dirname(DEBUG_LOG_PATH);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.appendFileSync(DEBUG_LOG_PATH, JSON.stringify(payload) + '\n');
-  } catch {
-    // Never crash the app due to logging failure.
-  }
+    const logDir = path.dirname(DEBUG_LOG_PATH);
+    if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+    fs.appendFileSync(
+      DEBUG_LOG_PATH,
+      JSON.stringify({
+        sessionId: 'd57eee',
+        runId: 'post-fix',
+        hypothesisId,
+        location,
+        message,
+        data,
+        timestamp: Date.now(),
+      }) + '\n'
+    );
+  } catch (_) {}
 }
 // #endregion
-
-const app = express();
-// Default 5001: macOS often reserves 5000 for AirPlay Receiver (EADDRINUSE).
-const PORT = Number(process.env.PORT) || 5001;
 
 // Keep it simple for local dev: allow frontend origin + Authorization header.
 app.use(
@@ -62,43 +65,6 @@ app.use(
 app.options('*', cors());
 app.use(express.json());
 
-// #region agent log
-// #region register request trace
-app.use((req, res, next) => {
-  if (req.path === '/register' && (req.method === 'POST' || req.method === 'OPTIONS')) {
-    agentLog('H6_registerPostOrPreflight', 'server/index.js:registerReqTrace', 'Incoming /register request', {
-      method: req.method,
-    });
-  }
-  next();
-});
-// #endregion
-// #endregion
-
-// #region agent log
-agentLog(
-  'H0_serverStart',
-  'server/index.js',
-  'Server booted (health endpoint available)',
-  { port: PORT }
-);
-// #endregion
-
-mongoose
-  .connect(process.env.MONGODB_URI)
-  .then(() => console.log('MongoDB connected'))
-  .catch((err) => console.error('MongoDB error:', err.message));
-
-// #region agent log
-app.get('/health', (req, res) => {
-  agentLog('H5_healthHit', 'server/index.js:/health', 'Health endpoint called', {
-    origin: req.headers.origin || null,
-    userAgentPrefix: (req.headers['user-agent'] || '').slice(0, 40) || null,
-  });
-  res.json({ ok: true, port: PORT });
-});
-// #endregion
-
 function signToken(userId) {
   return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
 }
@@ -108,121 +74,42 @@ app.post('/register', async (req, res) => {
   try {
     const { name, email, password } = req.body;
     // #region agent log
-    agentLog(
-      'H1_frontendToWrongPortOrNoBackend',
-      'server/index.js:/register:entry',
-      'POST /register hit (route reached)',
-      {
-        hasName: !!name,
-        hasEmail: !!email,
-        passwordLen: password ? String(password).length : 0,
-      }
-    );
-    // #endregion
-
-    fetch('http://127.0.0.1:7791/ingest/66c0d595-13f9-432c-adf1-cbc80eb0fcac', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Debug-Session-Id': 'b3a111',
-      },
-      body: JSON.stringify({
-        sessionId: 'b3a111',
-        location: 'server/index.js:/register:entry',
-        message: 'Register hit + request shape (no PII)',
-        data: {
-          hasName: !!name,
-          hasEmail: !!email,
-          passwordLen: password ? String(password).length : 0,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
+    debugLog('baseline', 'H1_api_target_mismatch', 'server/index.js:/register:entry', 'Register request reached backend', {
+      host: req.headers.host || null,
+      origin: req.headers.origin || null,
+      email: typeof email === 'string' ? email.trim().toLowerCase() : null,
+      mongoDb: mongoose?.connection?.name || null,
+    });
     // #endregion
     if (!name || !email || !password) {
-      // #region agent log
-      agentLog(
-        'H4_missingFields',
-        'server/index.js:/register:validationFail',
-        'Validation failed: missing required fields',
-        { hasName: !!name, hasEmail: !!email, hasPassword: !!password }
-      );
-      fetch('http://127.0.0.1:7791/ingest/66c0d595-13f9-432c-adf1-cbc80eb0fcac', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Debug-Session-Id': 'b3a111',
-        },
-        body: JSON.stringify({
-          sessionId: 'b3a111',
-          location: 'server/index.js:/register:validationFail',
-          message: 'Register validation failed (missing fields)',
-          data: { hasName: !!name, hasEmail: !!email, hasPassword: !!password },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       return res.status(400).json({ message: 'Name, email, and password are required' });
     }
     const existing = await User.findOne({ email });
-    // #region agent log
-    agentLog(
-      'H2_existingEmailOrValidation400',
-      'server/index.js:/register:existingCheck',
-      'Checked existing user by email',
-      { foundExisting: !!existing }
-    );
-    fetch('http://127.0.0.1:7791/ingest/66c0d595-13f9-432c-adf1-cbc80eb0fcac', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Debug-Session-Id': 'b3a111',
-      },
-      body: JSON.stringify({
-        sessionId: 'b3a111',
-        location: 'server/index.js:/register:afterFindOne',
-        message: 'Register existing-user check result',
-        data: { foundExisting: !!existing },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     if (existing) {
       return res.status(400).json({ message: 'Email already registered' });
     }
     const hashed = await bcrypt.hash(password, 10);
     const user = await User.create({ name, email, password: hashed });
     const token = signToken(user._id);
+    // #region agent log
+    sessionLog(
+      'verify_register_ok',
+      'server/index.js:/register:success',
+      'Register handler sending 201',
+      {}
+    );
+    // #endregion
     res.status(201).json({
       message: 'Registered successfully',
       token,
       user: { id: user._id, name: user.name, email: user.email },
     });
   } catch (err) {
-    agentLog(
-      'H3_backend500',
-      'server/index.js:/register:catch',
-      'Register handler threw',
-      { errName: err?.name || null, errMessage: err?.message || null }
-    );
     // #region agent log
-    fetch('http://127.0.0.1:7791/ingest/66c0d595-13f9-432c-adf1-cbc80eb0fcac', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Debug-Session-Id': 'b3a111',
-      },
-      body: JSON.stringify({
-        sessionId: 'b3a111',
-        location: 'server/index.js:/register:catch',
-        message: 'Register handler threw (no PII)',
-        data: {
-          errName: err?.name || null,
-          errCode: err?.code || null,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
+    sessionLog('verify_register_err', 'server/index.js:/register:catch', 'Register handler error', {
+      errName: err?.name || null,
+      errMessage: err?.message || null,
+    });
     // #endregion
     res.status(500).json({ message: err.message || 'Server error' });
   }
@@ -232,14 +119,35 @@ app.post('/register', async (req, res) => {
 app.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+    // #region agent log
+    debugLog('baseline', 'H1_api_target_mismatch', 'server/index.js:/login:entry', 'Login request reached backend', {
+      host: req.headers.host || null,
+      origin: req.headers.origin || null,
+      email: typeof email === 'string' ? email.trim().toLowerCase() : null,
+      mongoDb: mongoose?.connection?.name || null,
+    });
+    // #endregion
     if (!email || !password) {
       return res.status(400).json({ message: 'Email and password are required' });
     }
     const user = await User.findOne({ email });
+    // #region agent log
+    debugLog('baseline', 'H2_user_not_found_on_login', 'server/index.js:/login:user_lookup', 'Login user lookup result', {
+      email: typeof email === 'string' ? email.trim().toLowerCase() : null,
+      foundUser: !!user,
+      userId: user?._id?.toString?.() || null,
+    });
+    // #endregion
     if (!user) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
     const match = await bcrypt.compare(password, user.password);
+    // #region agent log
+    debugLog('baseline', 'H3_password_or_case_issue', 'server/index.js:/login:password_compare', 'Password compare completed', {
+      email: typeof email === 'string' ? email.trim().toLowerCase() : null,
+      passwordMatch: !!match,
+    });
+    // #endregion
     if (!match) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
@@ -358,15 +266,41 @@ app.post('/like', authMiddleware, async (req, res) => {
   }
 });
 
-const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
-server.on('error', (err) => {
-  if (err.code === 'EADDRINUSE') {
+console.log('[CampusConnect] Connecting to MongoDB (8s timeout)...');
+mongoose
+  .connect(process.env.MONGODB_URI, {
+    serverSelectionTimeoutMS: 8000,
+    connectTimeoutMS: 8000,
+  })
+  .then(() => {
+    console.log('MongoDB connected');
+    const server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+      // #region agent log
+      sessionLog('verify_server_listen', 'server/index.js:listen', 'HTTP server listening', {
+        port: PORT,
+      });
+      // #endregion
+    });
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.error(
+          `[CampusConnect] Port ${PORT} is already in use. Stop the other process or set PORT to another value in server/.env`
+        );
+        process.exit(1);
+      }
+      throw err;
+    });
+  })
+  .catch((err) => {
     console.error(
-      `[CampusConnect] Port ${PORT} is already in use. Stop the other process or set PORT to another value in server/.env`
+      '[CampusConnect] MongoDB connection failed. Start MongoDB and check MONGODB_URI in server/.env\n',
+      err.message
     );
+    // #region agent log
+    sessionLog('mongo_connect_failed', 'server/index.js:mongoose', 'MongoDB connection failed', {
+      errMessage: err?.message || null,
+    });
+    // #endregion
     process.exit(1);
-  }
-  throw err;
-});
+  });

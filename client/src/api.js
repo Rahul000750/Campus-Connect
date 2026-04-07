@@ -1,6 +1,9 @@
 import axios from 'axios';
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+// In dev, same-origin /api is proxied to the Express server (see vite.config.js).
+const API =
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.DEV ? '/api' : 'http://localhost:5174');
 
 const api = axios.create({
   baseURL: API,
