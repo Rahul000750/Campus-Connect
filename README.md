@@ -221,3 +221,5 @@ VITE_API_URL=http://localhost:5174
 ## Academic honesty
 
 Use this project to learn: type the code yourself, change variable names, add your own comments.
+
+Updated by Gautam Kumar.
