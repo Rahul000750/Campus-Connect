@@ -1,36 +1,43 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import {
-  FiBell,
-  FiHome,
-  FiLogOut,
-  FiMenu,
-  FiMessageCircle,
-  FiSearch,
-  FiUser,
-  FiX,
-  FiMoon,
-  FiSun,
-} from 'react-icons/fi';
+import { FiHome, FiLogOut, FiMenu, FiSearch, FiUser, FiX, FiMoon, FiSun } from 'react-icons/fi';
 import { useTheme } from '../context/ThemeContext';
+import api from '../api';
+import NotificationsDropdown from './NotificationsDropdown';
 
 export default function Navbar() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const { theme, toggleTheme } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState({ users: [], posts: [] });
   const token = localStorage.getItem('token');
 
   const navItems = useMemo(
     () => [
       { label: 'Home', to: '/', icon: FiHome },
-      { label: 'Messages', to: '/', icon: FiMessageCircle },
-      { label: 'Alerts', to: '/', icon: FiBell },
       { label: 'Profile', to: '/profile', icon: FiUser },
     ],
     []
   );
+
+  useEffect(() => {
+    if (!token || !query.trim()) {
+      setResults({ users: [], posts: [] });
+      return;
+    }
+    const timeout = setTimeout(async () => {
+      try {
+        const { data } = await api.get(`/search?q=${encodeURIComponent(query.trim())}`);
+        setResults(data);
+      } catch {
+        setResults({ users: [], posts: [] });
+      }
+    }, 250);
+    return () => clearTimeout(timeout);
+  }, [query, token]);
 
   function logout() {
     localStorage.removeItem('token');
@@ -52,7 +59,36 @@ export default function Navbar() {
           <div className="hidden flex-1 px-6 md:block">
             <label className="relative block">
               <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input className="input-modern py-2 pl-10" placeholder="Search people, posts, communities..." />
+              <input
+                className="input-modern py-2 pl-10"
+                placeholder="Search people and posts..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+              {query.trim() && (results.users.length > 0 || results.posts.length > 0) && (
+                <div className="glass-card absolute left-0 right-0 z-50 mt-2 max-h-80 overflow-auto p-2">
+                  {results.users.map((user) => (
+                    <Link
+                      key={user.id}
+                      to={`/profile/${user.id}`}
+                      className="block rounded-xl px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+                      onClick={() => setQuery('')}
+                    >
+                      {user.name} <span className="text-slate-400">({user.email})</span>
+                    </Link>
+                  ))}
+                  {results.posts.map((post) => (
+                    <Link
+                      key={post._id}
+                      to={`/post/${post._id}`}
+                      className="block rounded-xl px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+                      onClick={() => setQuery('')}
+                    >
+                      {post.author?.name}: {post.text.slice(0, 60)}
+                    </Link>
+                  ))}
+                </div>
+              )}
             </label>
           </div>
         )}
@@ -78,6 +114,7 @@ export default function Navbar() {
                   </Link>
                 );
               })}
+              <NotificationsDropdown />
               <button type="button" className="icon-btn" onClick={logout} title="Logout">
                 <FiLogOut />
               </button>

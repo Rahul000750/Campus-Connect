@@ -1,25 +1,38 @@
 import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import api from '../api';
 import PostCard from '../components/PostCard';
 import PageTransition from '../components/ui/PageTransition';
 import Skeleton from '../components/ui/Skeleton';
+import { useToast } from '../context/ToastContext';
 
 export default function Profile() {
+  const { id } = useParams();
   const [me, setMe] = useState(null);
+  const [profileUser, setProfileUser] = useState(null);
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [activeTab, setActiveTab] = useState('Posts');
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ name: '', bio: '', avatarUrl: '' });
+  const { addToast } = useToast();
 
   async function load() {
     setErr('');
+    setLoading(true);
     try {
-      const [meRes, postsRes] = await Promise.all([api.get('/me'), api.get('/posts')]);
+      const [meRes, postsRes] = await Promise.all([api.get('/users/me'), api.get('/posts')]);
       setMe(meRes.data);
-      const mine = postsRes.data.filter(
-        (p) => String(p.author?._id || p.author) === String(meRes.data._id)
-      );
-      setPosts(mine);
+      const targetUser = id ? (await api.get(`/users/${id}`)).data : meRes.data;
+      setProfileUser(targetUser);
+      setForm({
+        name: targetUser.name || '',
+        bio: targetUser.bio || '',
+        avatarUrl: targetUser.avatarUrl || '',
+      });
+      const mine = postsRes.data.filter((p) => String(p.author?._id || p.author) === String(targetUser.id));
+      setPosts(mine || []);
     } catch (error) {
       setErr(error.response?.data?.message || 'Could not load profile');
     } finally {
@@ -29,7 +42,32 @@ export default function Profile() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [id]);
+
+  const isOwnProfile = !id || String(id) === String(me?.id);
+
+  async function saveProfile(e) {
+    e.preventDefault();
+    try {
+      const { data } = await api.put('/users/profile', form);
+      setProfileUser(data.user);
+      setEditing(false);
+      addToast('Profile updated', 'success');
+      await load();
+    } catch (error) {
+      addToast(error.response?.data?.message || 'Could not update profile', 'error');
+    }
+  }
+
+  async function toggleFollow() {
+    try {
+      await api.post(`/users/follow/${profileUser.id}`);
+      addToast('Connection updated', 'success');
+      await load();
+    } catch (error) {
+      addToast(error.response?.data?.message || 'Could not follow user', 'error');
+    }
+  }
 
   return (
     <PageTransition>
@@ -47,25 +85,35 @@ export default function Profile() {
           </div>
         )}
 
-        {me && (
+        {profileUser && (
           <section className="glass-card p-5 sm:p-7">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-4">
                 <div className="h-20 w-20 rounded-full bg-gradient-to-br from-blue-600 to-violet-600 p-[3px]">
-                  <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-2xl font-semibold dark:bg-slate-900">
-                    {me.name?.charAt(0)?.toUpperCase()}
-                  </div>
+                  {profileUser.avatarUrl ? (
+                    <img src={profileUser.avatarUrl} alt="avatar" className="h-full w-full rounded-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-2xl font-semibold dark:bg-slate-900">
+                      {profileUser.name?.charAt(0)?.toUpperCase()}
+                    </div>
+                  )}
                 </div>
                 <div>
-                  <h1 className="text-2xl font-semibold">{me.name}</h1>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">{me.email}</p>
-                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                    Building my campus network and sharing meaningful updates.
-                  </p>
+                  <h1 className="text-2xl font-semibold">{profileUser.name}</h1>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">{profileUser.email}</p>
+                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{profileUser.bio || 'No bio yet.'}</p>
                 </div>
               </div>
 
-              <button type="button" className="primary-btn">Edit Profile</button>
+              {isOwnProfile ? (
+                <button type="button" className="primary-btn" onClick={() => setEditing((v) => !v)}>
+                  {editing ? 'Close Editor' : 'Edit Profile'}
+                </button>
+              ) : (
+                <button type="button" className="primary-btn" onClick={toggleFollow}>
+                  Follow / Unfollow
+                </button>
+              )}
             </div>
 
             <div className="mt-6 grid grid-cols-3 gap-3">
@@ -74,14 +122,23 @@ export default function Profile() {
                 <p className="text-xs uppercase tracking-wide text-slate-500">Posts</p>
               </div>
               <div className="rounded-2xl bg-white/70 p-3 text-center dark:bg-slate-800/70">
-                <p className="text-xl font-semibold">248</p>
+                <p className="text-xl font-semibold">{profileUser.followersCount || 0}</p>
                 <p className="text-xs uppercase tracking-wide text-slate-500">Followers</p>
               </div>
               <div className="rounded-2xl bg-white/70 p-3 text-center dark:bg-slate-800/70">
-                <p className="text-xl font-semibold">182</p>
+                <p className="text-xl font-semibold">{profileUser.followingCount || 0}</p>
                 <p className="text-xs uppercase tracking-wide text-slate-500">Following</p>
               </div>
             </div>
+
+            {isOwnProfile && editing && (
+              <form className="mt-5 space-y-3" onSubmit={saveProfile}>
+                <input className="input-modern" placeholder="Name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+                <input className="input-modern" placeholder="Avatar image URL" value={form.avatarUrl} onChange={(e) => setForm((f) => ({ ...f, avatarUrl: e.target.value }))} />
+                <textarea className="input-modern min-h-20 resize-none" placeholder="Bio" value={form.bio} onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))} />
+                <button type="submit" className="primary-btn">Save Profile</button>
+              </form>
+            )}
           </section>
         )}
 
@@ -109,13 +166,7 @@ export default function Profile() {
             </div>
           )}
 
-          {activeTab !== 'Posts' && (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="aspect-square rounded-2xl bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-800 dark:to-slate-700" />
-              ))}
-            </div>
-          )}
+          {activeTab !== 'Posts' && <p className="text-sm text-slate-500 dark:text-slate-400">No {activeTab.toLowerCase()} items yet.</p>}
         </section>
       </div>
     </PageTransition>

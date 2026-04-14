@@ -12,6 +12,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(false);
   const [err, setErr] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
   const { addToast } = useToast();
 
   async function load() {
@@ -36,8 +37,9 @@ export default function Home() {
     setPosting(true);
     setErr('');
     try {
-      await api.post('/post', { text: text.trim() });
+      await api.post('/post', { text: text.trim(), imageUrl: imageUrl.trim() });
       setText('');
+      setImageUrl('');
       addToast('Post published successfully', 'success');
       await load();
     } catch (error) {
@@ -74,6 +76,12 @@ export default function Home() {
                 placeholder="What is on your mind?"
                 value={text}
                 onChange={(e) => setText(e.target.value)}
+              />
+              <input
+                className="input-modern"
+                placeholder="Optional image URL"
+                value={imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
               />
               <button type="submit" className="primary-btn" disabled={posting}>
                 {posting ? 'Posting...' : 'Publish'}
