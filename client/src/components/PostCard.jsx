@@ -106,9 +106,17 @@ export default function PostCard({ post, onUpdate }) {
       <div className="flex items-start justify-between gap-3">
         <div className="flex gap-3">
           <div className="h-11 w-11 rounded-full bg-gradient-to-br from-blue-500 to-violet-600 p-[2px]">
-            <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-sm font-semibold dark:bg-slate-900">
-              {(post.author?.name || 'S').charAt(0).toUpperCase()}
-            </div>
+            {post.author?.avatarUrl || post.author?.profilePic ? (
+              <img
+                src={post.author?.profilePic || post.author?.avatarUrl}
+                alt="author"
+                className="h-full w-full rounded-full object-cover"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-sm font-semibold dark:bg-slate-900">
+                {(post.author?.name || 'S').charAt(0).toUpperCase()}
+              </div>
+            )}
           </div>
           <div>
             <Link className="text-sm font-semibold hover:underline sm:text-base" to={`/profile/${post.author?._id || post.author}`}>
@@ -191,7 +199,16 @@ export default function PostCard({ post, onUpdate }) {
         <ul className="mt-3 space-y-2 border-t border-slate-200 pt-3 text-sm dark:border-slate-700">
           {comments.map((c) => (
             <li key={c._id} className="rounded-xl bg-white/70 px-3 py-2 dark:bg-slate-800/70">
-              <strong>{c.author?.name || 'User'}:</strong> {c.text}
+              <span className="inline-flex items-center gap-2">
+                {(c.author?.avatarUrl || c.author?.profilePic) && (
+                  <img
+                    src={c.author?.profilePic || c.author?.avatarUrl}
+                    alt="comment author"
+                    className="h-6 w-6 rounded-full object-cover"
+                  />
+                )}
+                <strong>{c.author?.name || 'User'}:</strong> {c.text}
+              </span>
             </li>
           ))}
         </ul>

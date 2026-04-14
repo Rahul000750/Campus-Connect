@@ -13,6 +13,13 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState({ users: [], posts: [] });
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || 'null');
+    } catch {
+      return null;
+    }
+  });
   const token = localStorage.getItem('token');
 
   const navItems = useMemo(
@@ -38,6 +45,22 @@ export default function Navbar() {
     }, 250);
     return () => clearTimeout(timeout);
   }, [query, token]);
+
+  useEffect(() => {
+    function syncUser() {
+      try {
+        setCurrentUser(JSON.parse(localStorage.getItem('user') || 'null'));
+      } catch {
+        setCurrentUser(null);
+      }
+    }
+    window.addEventListener('user-updated', syncUser);
+    window.addEventListener('storage', syncUser);
+    return () => {
+      window.removeEventListener('user-updated', syncUser);
+      window.removeEventListener('storage', syncUser);
+    };
+  }, []);
 
   function logout() {
     localStorage.removeItem('token');
@@ -110,7 +133,15 @@ export default function Navbar() {
                     to={item.to}
                     title={item.label}
                   >
-                    <Icon />
+                    {item.label === 'Profile' && (currentUser?.profilePic || currentUser?.avatarUrl) ? (
+                      <img
+                        src={currentUser.profilePic || currentUser.avatarUrl}
+                        alt="profile"
+                        className="h-8 w-8 rounded-full object-cover"
+                      />
+                    ) : (
+                      <Icon />
+                    )}
                   </Link>
                 );
               })}

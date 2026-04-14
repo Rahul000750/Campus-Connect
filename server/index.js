@@ -1,10 +1,12 @@
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const multer = require('multer');
 
 const User = require('./models/User');
 const Post = require('./models/Post');
@@ -25,6 +27,12 @@ if (!process.env.JWT_SECRET) {
 
 const app = express();
 const PORT = Number(process.env.PORT) || 5174;
+const uploadsRoot = path.join(__dirname, 'uploads');
+const profileUploadsDir = path.join(uploadsRoot, 'profiles');
+const postUploadsDir = path.join(uploadsRoot, 'posts');
+
+fs.mkdirSync(profileUploadsDir, { recursive: true });
+fs.mkdirSync(postUploadsDir, { recursive: true });
 
 // Keep it simple for local dev: allow frontend origin + Authorization header.
 app.use(
@@ -37,6 +45,45 @@ app.use(
 // Explicitly handle preflight so browser "Network Error" becomes real server responses.
 app.options('*', cors());
 app.use(express.json());
+app.use('/uploads', express.static(uploadsRoot));
+
+function sanitizeName(name) {
+  return String(name || '')
+    .replace(/[^a-zA-Z0-9.-]/g, '-')
+    .replace(/-+/g, '-')
+    .toLowerCase();
+}
+
+function createUploader(folderName) {
+  const destination = folderName === 'profiles' ? profileUploadsDir : postUploadsDir;
+  const storage = multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, destination),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname || '').toLowerCase();
+      const base = path.basename(file.originalname || 'image', ext);
+      cb(null, `${Date.now()}-${sanitizeName(base)}${ext}`);
+    },
+  });
+
+  return multer({
+    storage,
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      if (!file.mimetype || !file.mimetype.startsWith('image/')) {
+        return cb(new Error('Only image files are allowed'));
+      }
+      return cb(null, true);
+    },
+  });
+}
+
+const profileUpload = createUploader('profiles');
+const postUpload = createUploader('posts');
+
+function getPublicFileUrl(req, folderName, filename) {
+  const base = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`;
+  return `${base}/uploads/${folderName}/${filename}`;
+}
 
 function signToken(userId) {
   return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
@@ -48,12 +95,14 @@ function getTags(text) {
 }
 
 function serializeUser(user) {
+  const profilePic = user.profilePic || user.avatarUrl || '';
   return {
     id: user._id,
     name: user.name,
     email: user.email,
     bio: user.bio || '',
-    avatarUrl: user.avatarUrl || '',
+    avatarUrl: profilePic,
+    profilePic,
     followersCount: user.followers?.length || 0,
     followingCount: user.following?.length || 0,
   };
@@ -179,16 +228,55 @@ app.get(['/me', '/users/me'], authMiddleware, async (req, res) => {
 // PUT /users/profile
 app.put('/users/profile', authMiddleware, async (req, res) => {
   try {
-    const { name, bio, avatarUrl } = req.body;
+    const { name, bio, avatarUrl, profilePic } = req.body;
     const updates = {};
     if (typeof name === 'string' && name.trim()) updates.name = name.trim();
     if (typeof bio === 'string') updates.bio = bio.trim().slice(0, 240);
-    if (typeof avatarUrl === 'string') updates.avatarUrl = avatarUrl.trim();
+    const nextProfilePic = typeof profilePic === 'string' ? profilePic.trim() : typeof avatarUrl === 'string' ? avatarUrl.trim() : '';
+    if (nextProfilePic) {
+      updates.avatarUrl = nextProfilePic;
+      updates.profilePic = nextProfilePic;
+    }
 
     const user = await User.findByIdAndUpdate(req.userId, updates, { new: true }).select('-password');
     res.json({ message: 'Profile updated', user: serializeUser(user) });
   } catch (err) {
     res.status(500).json({ message: err.message || 'Server error' });
+  }
+});
+
+// POST /upload/profile
+app.post('/upload/profile', authMiddleware, (req, res) => {
+  profileUpload.single('image')(req, res, async (err) => {
+    try {
+      if (err) {
+        const message = err.code === 'LIMIT_FILE_SIZE' ? 'Image must be 5MB or smaller' : err.message;
+        return res.status(400).json({ message });
+      }
+      if (!req.file) return res.status(400).json({ message: 'Image file is required' });
+      const imageUrl = getPublicFileUrl(req, 'profiles', req.file.filename);
+      res.status(201).json({ message: 'Profile image uploaded', imageUrl });
+    } catch (error) {
+      res.status(500).json({ message: error.message || 'Upload failed' });
+    }
+  });
+});
+
+// PUT /users/profile-photo
+app.put('/users/profile-photo', authMiddleware, async (req, res) => {
+  try {
+    const { imageUrl } = req.body;
+    if (!imageUrl || !String(imageUrl).trim()) {
+      return res.status(400).json({ message: 'imageUrl is required' });
+    }
+    const user = await User.findByIdAndUpdate(
+      req.userId,
+      { avatarUrl: String(imageUrl).trim(), profilePic: String(imageUrl).trim() },
+      { new: true }
+    ).select('-password');
+    res.json({ message: 'Profile photo updated', user: serializeUser(user) });
+  } catch (error) {
+    res.status(500).json({ message: error.message || 'Server error' });
   }
 });
 
@@ -280,14 +368,39 @@ app.get('/posts/:id', authMiddleware, async (req, res) => {
   }
 });
 
+// POST /upload/post
+app.post('/upload/post', authMiddleware, (req, res) => {
+  postUpload.single('image')(req, res, async (err) => {
+    try {
+      if (err) {
+        const message = err.code === 'LIMIT_FILE_SIZE' ? 'Image must be 5MB or smaller' : err.message;
+        return res.status(400).json({ message });
+      }
+      if (!req.file) return res.status(400).json({ message: 'Image file is required' });
+      const imageUrl = getPublicFileUrl(req, 'posts', req.file.filename);
+      res.status(201).json({ message: 'Post image uploaded', imageUrl });
+    } catch (error) {
+      res.status(500).json({ message: error.message || 'Upload failed' });
+    }
+  });
+});
+
 // POST /post and /posts/create
 app.post(['/post', '/posts/create'], authMiddleware, async (req, res) => {
   try {
-    const { text, imageUrl = '' } = req.body;
-    if (!text || !String(text).trim()) {
-      return res.status(400).json({ message: 'Post text is required' });
+    const { text, caption, imageUrl = '', image = '' } = req.body;
+    const finalCaption = String(caption || text || '').trim();
+    const finalImage = String(image || imageUrl || '').trim();
+    if (!finalCaption && !finalImage) {
+      return res.status(400).json({ message: 'Post caption or image is required' });
     }
-    const post = await Post.create({ text: text.trim(), imageUrl: imageUrl.trim(), author: req.userId });
+    const post = await Post.create({
+      text: finalCaption,
+      caption: finalCaption,
+      imageUrl: finalImage,
+      image: finalImage,
+      author: req.userId,
+    });
     await post.populate('author', 'name email avatarUrl');
     res.status(201).json(post);
   } catch (err) {
@@ -298,14 +411,22 @@ app.post(['/post', '/posts/create'], authMiddleware, async (req, res) => {
 // PUT /posts/:id (edit own post)
 app.put('/posts/:id', authMiddleware, async (req, res) => {
   try {
-    const { text, imageUrl } = req.body;
+    const { text, caption, imageUrl, image } = req.body;
     const post = await Post.findById(req.params.id);
     if (!post) return res.status(404).json({ message: 'Post not found' });
     if (String(post.author) !== String(req.userId)) {
       return res.status(403).json({ message: 'Not allowed' });
     }
-    if (typeof text === 'string' && text.trim()) post.text = text.trim();
-    if (typeof imageUrl === 'string') post.imageUrl = imageUrl.trim();
+    const nextCaption = typeof caption === 'string' ? caption.trim() : typeof text === 'string' ? text.trim() : '';
+    if (nextCaption) {
+      post.text = nextCaption;
+      post.caption = nextCaption;
+    }
+    const nextImage = typeof image === 'string' ? image.trim() : typeof imageUrl === 'string' ? imageUrl.trim() : '';
+    if (nextImage) {
+      post.imageUrl = nextImage;
+      post.image = nextImage;
+    }
     await post.save();
     res.json({ message: 'Post updated', post });
   } catch (err) {

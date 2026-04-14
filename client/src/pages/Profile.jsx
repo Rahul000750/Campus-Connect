@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../api';
 import PostCard from '../components/PostCard';
+import ImageUploader from '../components/ImageUploader';
 import PageTransition from '../components/ui/PageTransition';
 import Skeleton from '../components/ui/Skeleton';
 import { useToast } from '../context/ToastContext';
@@ -15,7 +16,9 @@ export default function Profile() {
   const [err, setErr] = useState('');
   const [activeTab, setActiveTab] = useState('Posts');
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ name: '', bio: '', avatarUrl: '' });
+  const [form, setForm] = useState({ name: '', bio: '', profilePic: '' });
+  const [profileImageFile, setProfileImageFile] = useState(null);
+  const [savingProfile, setSavingProfile] = useState(false);
   const { addToast } = useToast();
 
   async function load() {
@@ -29,7 +32,7 @@ export default function Profile() {
       setForm({
         name: targetUser.name || '',
         bio: targetUser.bio || '',
-        avatarUrl: targetUser.avatarUrl || '',
+        profilePic: targetUser.profilePic || targetUser.avatarUrl || '',
       });
       const mine = postsRes.data.filter((p) => String(p.author?._id || p.author) === String(targetUser.id));
       setPosts(mine || []);
@@ -48,14 +51,35 @@ export default function Profile() {
 
   async function saveProfile(e) {
     e.preventDefault();
+    setSavingProfile(true);
     try {
-      const { data } = await api.put('/users/profile', form);
+      let profilePic = form.profilePic;
+      if (profileImageFile) {
+        const uploadData = new FormData();
+        uploadData.append('image', profileImageFile);
+        const uploadRes = await api.post('/upload/profile', uploadData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        profilePic = uploadRes.data.imageUrl;
+        await api.put('/users/profile-photo', { imageUrl: profilePic });
+      }
+
+      const { data } = await api.put('/users/profile', { ...form, profilePic });
       setProfileUser(data.user);
+      setForm((f) => ({ ...f, profilePic: data.user.profilePic || data.user.avatarUrl || '' }));
+      setProfileImageFile(null);
       setEditing(false);
+
+      const stored = JSON.parse(localStorage.getItem('user') || '{}');
+      localStorage.setItem('user', JSON.stringify({ ...stored, ...data.user }));
+      window.dispatchEvent(new Event('user-updated'));
+
       addToast('Profile updated', 'success');
       await load();
     } catch (error) {
       addToast(error.response?.data?.message || 'Could not update profile', 'error');
+    } finally {
+      setSavingProfile(false);
     }
   }
 
@@ -90,8 +114,8 @@ export default function Profile() {
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-4">
                 <div className="h-20 w-20 rounded-full bg-gradient-to-br from-blue-600 to-violet-600 p-[3px]">
-                  {profileUser.avatarUrl ? (
-                    <img src={profileUser.avatarUrl} alt="avatar" className="h-full w-full rounded-full object-cover" />
+                  {(profileUser.profilePic || profileUser.avatarUrl) ? (
+                    <img src={profileUser.profilePic || profileUser.avatarUrl} alt="avatar" className="h-full w-full rounded-full object-cover" />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-2xl font-semibold dark:bg-slate-900">
                       {profileUser.name?.charAt(0)?.toUpperCase()}
@@ -134,9 +158,16 @@ export default function Profile() {
             {isOwnProfile && editing && (
               <form className="mt-5 space-y-3" onSubmit={saveProfile}>
                 <input className="input-modern" placeholder="Name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
-                <input className="input-modern" placeholder="Avatar image URL" value={form.avatarUrl} onChange={(e) => setForm((f) => ({ ...f, avatarUrl: e.target.value }))} />
+                <ImageUploader
+                  label="Profile photo"
+                  initialImage={form.profilePic}
+                  buttonText="Upload profile photo"
+                  onFileChange={setProfileImageFile}
+                />
                 <textarea className="input-modern min-h-20 resize-none" placeholder="Bio" value={form.bio} onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))} />
-                <button type="submit" className="primary-btn">Save Profile</button>
+                <button type="submit" className="primary-btn" disabled={savingProfile}>
+                  {savingProfile ? 'Saving...' : 'Save Profile'}
+                </button>
               </form>
             )}
           </section>

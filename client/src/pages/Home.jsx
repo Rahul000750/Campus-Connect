@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../api';
 import PostCard from '../components/PostCard';
 import Sidebar from '../components/Sidebar';
+import ImageUploader from '../components/ImageUploader';
 import PageTransition from '../components/ui/PageTransition';
 import Skeleton from '../components/ui/Skeleton';
 import { useToast } from '../context/ToastContext';
@@ -12,7 +13,8 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(false);
   const [err, setErr] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
+  const [postImageFile, setPostImageFile] = useState(null);
+  const [uploaderReset, setUploaderReset] = useState(0);
   const { addToast } = useToast();
 
   async function load() {
@@ -33,13 +35,23 @@ export default function Home() {
 
   async function createPost(e) {
     e.preventDefault();
-    if (!text.trim()) return;
+    if (!text.trim() && !postImageFile) return;
     setPosting(true);
     setErr('');
     try {
-      await api.post('/post', { text: text.trim(), imageUrl: imageUrl.trim() });
+      let imageUrl = '';
+      if (postImageFile) {
+        const formData = new FormData();
+        formData.append('image', postImageFile);
+        const uploadRes = await api.post('/upload/post', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        imageUrl = uploadRes.data.imageUrl;
+      }
+      await api.post('/post', { caption: text.trim(), image: imageUrl });
       setText('');
-      setImageUrl('');
+      setPostImageFile(null);
+      setUploaderReset((v) => v + 1);
       addToast('Post published successfully', 'success');
       await load();
     } catch (error) {
@@ -73,17 +85,17 @@ export default function Home() {
               <textarea
                 className="input-modern min-h-24 resize-none"
                 rows={3}
-                placeholder="What is on your mind?"
+                placeholder="Write a caption..."
                 value={text}
                 onChange={(e) => setText(e.target.value)}
               />
-              <input
-                className="input-modern"
-                placeholder="Optional image URL"
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
+              <ImageUploader
+                label="Add post image"
+                buttonText="Upload post image"
+                onFileChange={setPostImageFile}
+                resetToken={uploaderReset}
               />
-              <button type="submit" className="primary-btn" disabled={posting}>
+              <button type="submit" className="primary-btn" disabled={posting || (!text.trim() && !postImageFile)}>
                 {posting ? 'Posting...' : 'Publish'}
               </button>
             </form>
