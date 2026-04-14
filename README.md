@@ -67,7 +67,7 @@ cp .env.example .env
 npm start
 ```
 
-You should see `MongoDB connected` and `Server running on ${import.meta.env.VITE_API_URL}`.
+You should see `MongoDB connected` and `Server running on http://localhost:5174`.
 
 ### Step 4: What each backend piece does (teacher-style)
 
@@ -90,7 +90,7 @@ With the server running, use **Terminal** (replace `YOUR_TOKEN` after login).
 ### 1) Register
 
 ```bash
-curl -s -X POST ${import.meta.env.VITE_API_URL}/register \
+curl -s -X POST http://127.0.0.1:5174/register \
   -H "Content-Type: application/json" \
   -d '{"name":"Test Student","email":"test@college.edu","password":"secret12"}'
 ```
@@ -100,7 +100,7 @@ Copy `token` from the JSON response.
 ### 2) Login
 
 ```bash
-curl -s -X POST ${import.meta.env.VITE_API_URL}/login \
+curl -s -X POST http://127.0.0.1:5174/login \
   -H "Content-Type: application/json" \
   -d '{"email":"test@college.edu","password":"secret12"}'
 ```
@@ -108,13 +108,13 @@ curl -s -X POST ${import.meta.env.VITE_API_URL}/login \
 ### 3) Get profile (needs token)
 
 ```bash
-curl -s ${import.meta.env.VITE_API_URL}/me -H "Authorization: Bearer YOUR_TOKEN"
+curl -s http://127.0.0.1:5174/me -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
 ### 4) Create post
 
 ```bash
-curl -s -X POST ${import.meta.env.VITE_API_URL}/post \
+curl -s -X POST http://127.0.0.1:5174/post \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -d '{"text":"Hello from CampusConnect!"}'
@@ -123,13 +123,13 @@ curl -s -X POST ${import.meta.env.VITE_API_URL}/post \
 ### 5) List posts
 
 ```bash
-curl -s ${import.meta.env.VITE_API_URL}/posts -H "Authorization: Bearer YOUR_TOKEN"
+curl -s http://127.0.0.1:5174/posts -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
 ### 6) Like (use a real `postId` from step 5)
 
 ```bash
-curl -s -X POST ${import.meta.env.VITE_API_URL}/like \
+curl -s -X POST http://127.0.0.1:5174/like \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -d '{"postId":"PASTE_POST_ID_HERE"}'
@@ -138,7 +138,7 @@ curl -s -X POST ${import.meta.env.VITE_API_URL}/like \
 ### 7) Comment
 
 ```bash
-curl -s -X POST ${import.meta.env.VITE_API_URL}/comment \
+curl -s -X POST http://127.0.0.1:5174/comment \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -d '{"postId":"PASTE_POST_ID_HERE","text":"Nice post!"}'
@@ -160,10 +160,10 @@ Open the URL Vite prints (usually `http://localhost:5173`).
 
 ### Step 2: API URL (optional)
 
-By default the client uses `${import.meta.env.VITE_API_URL}`. To override, create `client/.env`:
+By default the client uses `/api` (proxied by Vite to the backend in development). To override, create `client/.env`:
 
 ```env
-VITE_API_URL=${import.meta.env.VITE_API_URL}
+VITE_API_URL=http://127.0.0.1:5174
 ```
 
 ### Step 3: What each frontend piece does

@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import api from '../api';
 import PostCard from '../components/PostCard';
+import Sidebar from '../components/Sidebar';
+import PageTransition from '../components/ui/PageTransition';
+import Skeleton from '../components/ui/Skeleton';
+import { useToast } from '../context/ToastContext';
 
 export default function Home() {
   const [posts, setPosts] = useState([]);
@@ -8,6 +12,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(false);
   const [err, setErr] = useState('');
+  const { addToast } = useToast();
 
   async function load() {
     setErr('');
@@ -33,40 +38,68 @@ export default function Home() {
     try {
       await api.post('/post', { text: text.trim() });
       setText('');
+      addToast('Post published successfully', 'success');
       await load();
     } catch (error) {
-      setErr(error.response?.data?.message || 'Could not create post');
+      const message = error.response?.data?.message || 'Could not create post';
+      setErr(message);
+      addToast(message, 'error');
     } finally {
       setPosting(false);
     }
   }
 
   return (
-    <div>
-      <h1 className="h4 mb-3">Feed</h1>
-      <div className="card mb-4">
-        <div className="card-body">
-          <form onSubmit={createPost}>
-            {err && <div className="alert alert-danger py-2">{err}</div>}
-            <label className="form-label">New post</label>
-            <textarea
-              className="form-control mb-2"
-              rows={3}
-              placeholder="What is on your mind?"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-            />
-            <button type="submit" className="btn btn-primary" disabled={posting}>
-              {posting ? 'Posting...' : 'Post'}
-            </button>
-          </form>
-        </div>
+    <PageTransition>
+      <div className="mx-auto grid w-full max-w-6xl gap-5 xl:grid-cols-[1fr_18rem]">
+        <section className="space-y-4">
+          <header className="glass-card p-5">
+            <h1 className="text-xl font-semibold">Home Feed</h1>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Share updates with your campus network.
+            </p>
+          </header>
+
+          <section className="glass-card p-4 sm:p-5">
+            <form onSubmit={createPost} className="space-y-3">
+              {err && (
+                <div className="rounded-2xl border border-rose-300/50 bg-rose-100/60 px-3 py-2 text-sm text-rose-700 dark:bg-rose-900/20 dark:text-rose-300">
+                  {err}
+                </div>
+              )}
+              <label className="text-sm font-medium text-slate-600 dark:text-slate-300">Create a new post</label>
+              <textarea
+                className="input-modern min-h-24 resize-none"
+                rows={3}
+                placeholder="What is on your mind?"
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+              />
+              <button type="submit" className="primary-btn" disabled={posting}>
+                {posting ? 'Posting...' : 'Publish'}
+              </button>
+            </form>
+          </section>
+
+          {loading && (
+            <div className="space-y-3">
+              <Skeleton className="h-40" />
+              <Skeleton className="h-52" />
+            </div>
+          )}
+
+          {!loading && posts.length === 0 && (
+            <div className="glass-card p-8 text-center text-sm text-slate-500 dark:text-slate-400">
+              No posts yet. Be the first one to post.
+            </div>
+          )}
+
+          {posts.map((p) => (
+            <PostCard key={p._id} post={p} onUpdate={load} />
+          ))}
+        </section>
+        <Sidebar />
       </div>
-      {loading && <p className="text-muted">Loading posts...</p>}
-      {!loading && posts.length === 0 && <p className="text-muted">No posts yet. Be the first to post!</p>}
-      {posts.map((p) => (
-        <PostCard key={p._id} post={p} onUpdate={load} />
-      ))}
-    </div>
+    </PageTransition>
   );
 }

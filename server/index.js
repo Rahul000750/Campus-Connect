@@ -5,7 +5,6 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const fs = require('fs');
 
 const User = require('./models/User');
 const Post = require('./models/Post');
@@ -25,33 +24,6 @@ if (!process.env.JWT_SECRET) {
 
 const app = express();
 const PORT = Number(process.env.PORT) || 5174;
-
-function debugLog(runId, hypothesisId, location, message, data = {}) {
-  fetch('http://127.0.0.1:7344/ingest/36f1c759-e85b-4c6f-af35-22613d633138',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'de59f0'},body:JSON.stringify({sessionId:'de59f0',runId,hypothesisId,location,message,data,timestamp:Date.now()})}).catch(()=>{});
-}
-
-// #region agent log
-const DEBUG_LOG_PATH =
-  '/Users/kunalupadhyay/Campus Connect/.cursor/debug-d57eee.log';
-function sessionLog(hypothesisId, location, message, data = {}) {
-  try {
-    const logDir = path.dirname(DEBUG_LOG_PATH);
-    if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
-    fs.appendFileSync(
-      DEBUG_LOG_PATH,
-      JSON.stringify({
-        sessionId: 'd57eee',
-        runId: 'post-fix',
-        hypothesisId,
-        location,
-        message,
-        data,
-        timestamp: Date.now(),
-      }) + '\n'
-    );
-  } catch (_) {}
-}
-// #endregion
 
 // Keep it simple for local dev: allow frontend origin + Authorization header.
 app.use(
@@ -74,12 +46,7 @@ app.post('/register', async (req, res) => {
   try {
     const { name, email, password } = req.body;
     // #region agent log
-    debugLog('baseline', 'H1_api_target_mismatch', 'server/index.js:/register:entry', 'Register request reached backend', {
-      host: req.headers.host || null,
-      origin: req.headers.origin || null,
-      email: typeof email === 'string' ? email.trim().toLowerCase() : null,
-      mongoDb: mongoose?.connection?.name || null,
-    });
+    fetch('http://127.0.0.1:7501/ingest/66c0d595-13f9-432c-adf1-cbc80eb0fcac',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ac4137'},body:JSON.stringify({sessionId:'ac4137',runId:'cleanup-baseline',hypothesisId:'H1_cleanup_preserves_register_path',location:'server/index.js:/register:entry',message:'Register endpoint reached after cleanup',data:{hasName:!!name,hasEmail:!!email,hasPassword:!!password},timestamp:Date.now()})}).catch(()=>{});
     // #endregion
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Name, email, and password are required' });
@@ -91,26 +58,12 @@ app.post('/register', async (req, res) => {
     const hashed = await bcrypt.hash(password, 10);
     const user = await User.create({ name, email, password: hashed });
     const token = signToken(user._id);
-    // #region agent log
-    sessionLog(
-      'verify_register_ok',
-      'server/index.js:/register:success',
-      'Register handler sending 201',
-      {}
-    );
-    // #endregion
     res.status(201).json({
       message: 'Registered successfully',
       token,
       user: { id: user._id, name: user.name, email: user.email },
     });
   } catch (err) {
-    // #region agent log
-    sessionLog('verify_register_err', 'server/index.js:/register:catch', 'Register handler error', {
-      errName: err?.name || null,
-      errMessage: err?.message || null,
-    });
-    // #endregion
     res.status(500).json({ message: err.message || 'Server error' });
   }
 });
@@ -120,34 +73,16 @@ app.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     // #region agent log
-    debugLog('baseline', 'H1_api_target_mismatch', 'server/index.js:/login:entry', 'Login request reached backend', {
-      host: req.headers.host || null,
-      origin: req.headers.origin || null,
-      email: typeof email === 'string' ? email.trim().toLowerCase() : null,
-      mongoDb: mongoose?.connection?.name || null,
-    });
+    fetch('http://127.0.0.1:7501/ingest/66c0d595-13f9-432c-adf1-cbc80eb0fcac',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ac4137'},body:JSON.stringify({sessionId:'ac4137',runId:'cleanup-baseline',hypothesisId:'H2_cleanup_preserves_login_path',location:'server/index.js:/login:entry',message:'Login endpoint reached after cleanup',data:{hasEmail:!!email,hasPassword:!!password},timestamp:Date.now()})}).catch(()=>{});
     // #endregion
     if (!email || !password) {
       return res.status(400).json({ message: 'Email and password are required' });
     }
     const user = await User.findOne({ email });
-    // #region agent log
-    debugLog('baseline', 'H2_user_not_found_on_login', 'server/index.js:/login:user_lookup', 'Login user lookup result', {
-      email: typeof email === 'string' ? email.trim().toLowerCase() : null,
-      foundUser: !!user,
-      userId: user?._id?.toString?.() || null,
-    });
-    // #endregion
     if (!user) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
     const match = await bcrypt.compare(password, user.password);
-    // #region agent log
-    debugLog('baseline', 'H3_password_or_case_issue', 'server/index.js:/login:password_compare', 'Password compare completed', {
-      email: typeof email === 'string' ? email.trim().toLowerCase() : null,
-      passwordMatch: !!match,
-    });
-    // #endregion
     if (!match) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
@@ -165,6 +100,9 @@ app.post('/login', async (req, res) => {
 // GET /me — who is logged in (for Profile page)
 app.get('/me', authMiddleware, async (req, res) => {
   try {
+    // #region agent log
+    fetch('http://127.0.0.1:7501/ingest/66c0d595-13f9-432c-adf1-cbc80eb0fcac',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ac4137'},body:JSON.stringify({sessionId:'ac4137',runId:'cleanup-baseline',hypothesisId:'H3_cleanup_preserves_profile_auth',location:'server/index.js:/me:entry',message:'Profile endpoint reached after cleanup',data:{hasUserId:!!req.userId},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     const user = await User.findById(req.userId).select('-password');
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json(user);
@@ -176,6 +114,9 @@ app.get('/me', authMiddleware, async (req, res) => {
 // GET /posts — feed (protected so we know who liked)
 app.get('/posts', authMiddleware, async (req, res) => {
   try {
+    // #region agent log
+    fetch('http://127.0.0.1:7501/ingest/66c0d595-13f9-432c-adf1-cbc80eb0fcac',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ac4137'},body:JSON.stringify({sessionId:'ac4137',runId:'cleanup-baseline',hypothesisId:'H4_cleanup_preserves_feed_query',location:'server/index.js:/posts:entry',message:'Posts endpoint reached after cleanup',data:{hasUserId:!!req.userId},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     const posts = await Post.find()
       .sort({ createdAt: -1 })
       .populate('author', 'name email')
@@ -276,11 +217,6 @@ mongoose
     console.log('MongoDB connected');
     const server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`Server running on http://localhost:${PORT}`);
-      // #region agent log
-      sessionLog('verify_server_listen', 'server/index.js:listen', 'HTTP server listening', {
-        port: PORT,
-      });
-      // #endregion
     });
     server.on('error', (err) => {
       if (err.code === 'EADDRINUSE') {
@@ -297,10 +233,5 @@ mongoose
       '[CampusConnect] MongoDB connection failed. Start MongoDB and check MONGODB_URI in server/.env\n',
       err.message
     );
-    // #region agent log
-    sessionLog('mongo_connect_failed', 'server/index.js:mongoose', 'MongoDB connection failed', {
-      errMessage: err?.message || null,
-    });
-    // #endregion
     process.exit(1);
   });

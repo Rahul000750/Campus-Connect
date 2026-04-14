@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import api from '../api';
+import PageTransition from '../components/ui/PageTransition';
+import { useToast } from '../context/ToastContext';
 
 export default function Register() {
   const navigate = useNavigate();
@@ -9,6 +12,7 @@ export default function Register() {
   const [password, setPassword] = useState('');
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
+  const { addToast } = useToast();
 
   useEffect(() => {
     if (localStorage.getItem('token')) navigate('/', { replace: true });
@@ -19,65 +23,27 @@ export default function Register() {
     setErr('');
     if (password.length < 6) {
       setErr('Password must be at least 6 characters');
+      addToast('Password must be at least 6 characters', 'error');
       return;
     }
     setLoading(true);
     try {
       const { data } = await api.post('/register', { name, email, password });
-      // #region agent log
-      fetch('http://127.0.0.1:7791/ingest/66c0d595-13f9-432c-adf1-cbc80eb0fcac', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Debug-Session-Id': 'd57eee',
-        },
-        body: JSON.stringify({
-          sessionId: 'd57eee',
-          runId: 'post-fix',
-          hypothesisId: 'verify_client_ok',
-          location: 'client/src/pages/Register.jsx:submit:success',
-          message: 'Register API returned success',
-          data: { baseURL: api.defaults?.baseURL || null },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
+      addToast('Account created successfully', 'success');
       navigate('/');
     } catch (error) {
-      // #region agent log
-      fetch('http://127.0.0.1:7791/ingest/66c0d595-13f9-432c-adf1-cbc80eb0fcac', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Debug-Session-Id': 'd57eee',
-        },
-        body: JSON.stringify({
-          sessionId: 'd57eee',
-          runId: 'post-fix',
-          hypothesisId: 'verify_client_err',
-          location: 'client/src/pages/Register.jsx:submit:catch',
-          message: 'Register request failed',
-          data: {
-            baseURL: api.defaults?.baseURL || null,
-            hasResponse: !!error?.response,
-            status: error?.response?.status || null,
-            axiosCode: error?.code || null,
-            axiosMessage: error?.message || null,
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       const serverMsg = error.response?.data?.message;
       const baseURL = api.defaults?.baseURL || 'unknown';
       if (!serverMsg && error?.message === 'Network Error') {
-        setErr(
-          `Cannot reach the API at ${baseURL}. Start MongoDB, then start the API (port 5174). Restart the Vite dev server after changing proxy or env.`
-        );
+        const message = `Cannot reach the API at ${baseURL}. Start MongoDB, then start the API (port 5174). Restart the Vite dev server after changing proxy or env.`;
+        setErr(message);
+        addToast(message, 'error');
       } else {
-        setErr(serverMsg || error?.message || 'Registration failed');
+        const message = serverMsg || error?.message || 'Registration failed';
+        setErr(message);
+        addToast(message, 'error');
       }
     } finally {
       setLoading(false);
@@ -85,49 +51,57 @@ export default function Register() {
   }
 
   return (
-    <div className="card shadow-sm mx-auto" style={{ maxWidth: 400 }}>
-      <div className="card-body p-4">
-        <h1 className="h4 mb-3">Register</h1>
-        {err && <div className="alert alert-danger py-2">{err}</div>}
-        <form onSubmit={submit}>
-          <div className="mb-3">
-            <label className="form-label">Name</label>
+    <PageTransition>
+      <div className="mx-auto flex min-h-[72vh] w-full max-w-md items-center">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-card w-full p-6 sm:p-7"
+        >
+          <h1 className="text-2xl font-semibold">Create account</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Join and build your campus identity.</p>
+          {err && (
+            <div className="mt-4 rounded-2xl border border-rose-300/50 bg-rose-100/60 px-3 py-2 text-sm text-rose-700 dark:bg-rose-900/20 dark:text-rose-300">
+              {err}
+            </div>
+          )}
+          <form onSubmit={submit} className="mt-5 space-y-3">
+            <label className="text-sm font-medium text-slate-600 dark:text-slate-300">Name</label>
             <input
-              className="form-control"
+              className="input-modern"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
             />
-          </div>
-          <div className="mb-3">
-            <label className="form-label">Email</label>
+            <label className="text-sm font-medium text-slate-600 dark:text-slate-300">Email</label>
             <input
               type="email"
-              className="form-control"
+              className="input-modern"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
             />
-          </div>
-          <div className="mb-3">
-            <label className="form-label">Password (min 6)</label>
+            <label className="text-sm font-medium text-slate-600 dark:text-slate-300">Password (min 6)</label>
             <input
               type="password"
-              className="form-control"
+              className="input-modern"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={6}
             />
-          </div>
-          <button type="submit" className="btn btn-primary w-100" disabled={loading}>
-            {loading ? 'Please wait...' : 'Create account'}
-          </button>
-        </form>
-        <p className="mt-3 mb-0 small text-center">
-          Already have an account? <Link to="/login">Login</Link>
-        </p>
+            <button type="submit" className="primary-btn mt-2 w-full" disabled={loading}>
+              {loading ? 'Please wait...' : 'Create account'}
+            </button>
+          </form>
+          <p className="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">
+            Already have an account?{' '}
+            <Link to="/login" className="font-medium text-blue-600 dark:text-blue-400">
+              Login
+            </Link>
+          </p>
+        </motion.div>
       </div>
-    </div>
+    </PageTransition>
   );
 }

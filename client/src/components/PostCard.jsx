@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { FiBookmark, FiHeart, FiMessageCircle, FiSend } from 'react-icons/fi';
 import api from '../api';
 import CommentBox from './CommentBox';
+import { useToast } from '../context/ToastContext';
 
 function getStoredUser() {
   try {
@@ -14,6 +17,7 @@ export default function PostCard({ post, onUpdate }) {
   const [likes, setLikes] = useState(post.likes || []);
   const [comments, setComments] = useState(post.comments || []);
   const user = getStoredUser();
+  const { addToast } = useToast();
 
   useEffect(() => {
     setLikes(post.likes || []);
@@ -27,9 +31,10 @@ export default function PostCard({ post, onUpdate }) {
     try {
       const { data } = await api.post('/like', { postId: post._id });
       setLikes(data.likes || []);
+      addToast(liked ? 'Removed from likes' : 'Liked post', 'success');
       if (onUpdate) onUpdate();
-    } catch {
-      /* ignore */
+    } catch (error) {
+      addToast(error.response?.data?.message || 'Could not update like', 'error');
     }
   }
 
@@ -39,35 +44,66 @@ export default function PostCard({ post, onUpdate }) {
   }
 
   return (
-    <div className="post-card p-3 mb-3">
-      <div className="d-flex justify-content-between align-items-start">
-        <div>
-          <strong>{post.author?.name || 'Student'}</strong>
-          <div className="text-muted small">
-            {post.createdAt && new Date(post.createdAt).toLocaleString()}
+    <motion.article
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="glass-card p-4 sm:p-5"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex gap-3">
+          <div className="h-11 w-11 rounded-full bg-gradient-to-br from-blue-500 to-violet-600 p-[2px]">
+            <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-sm font-semibold dark:bg-slate-900">
+              {(post.author?.name || 'S').charAt(0).toUpperCase()}
+            </div>
+          </div>
+          <div>
+            <strong className="text-sm sm:text-base">{post.author?.name || 'Student'}</strong>
+            <div className="text-xs text-slate-500 dark:text-slate-400">
+              {post.createdAt && new Date(post.createdAt).toLocaleString()}
+            </div>
           </div>
         </div>
       </div>
-      <p className="mb-2 mt-2">{post.text}</p>
-      <div className="d-flex align-items-center gap-2">
+
+      <p className="mt-4 whitespace-pre-wrap text-[15px] leading-relaxed text-slate-700 dark:text-slate-200">{post.text}</p>
+
+      <div className="mt-4 flex flex-wrap items-center gap-2">
         <button
           type="button"
-          className={`btn btn-sm ${liked ? 'btn-primary' : 'btn-outline-primary'}`}
+          className={`rounded-xl px-3 py-2 text-sm transition ${
+            liked
+              ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-300'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+          }`}
           onClick={toggleLike}
         >
-          Like ({likes.length})
+          <span className="inline-flex items-center gap-1.5">
+            <FiHeart /> {likes.length}
+          </span>
+        </button>
+        <button type="button" className="rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
+          <span className="inline-flex items-center gap-1.5">
+            <FiMessageCircle /> {comments.length}
+          </span>
+        </button>
+        <button type="button" className="rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
+          <FiSend />
+        </button>
+        <button type="button" className="rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
+          <FiBookmark />
         </button>
       </div>
+
       {comments.length > 0 && (
-        <ul className="list-unstyled small mt-2 mb-0 border-top pt-2">
+        <ul className="mt-3 space-y-2 border-t border-slate-200 pt-3 text-sm dark:border-slate-700">
           {comments.map((c) => (
-            <li key={c._id} className="mb-1">
-              <strong>{c.author?.name}:</strong> {c.text}
+            <li key={c._id} className="rounded-xl bg-white/70 px-3 py-2 dark:bg-slate-800/70">
+              <strong>{c.author?.name || 'User'}:</strong> {c.text}
             </li>
           ))}
         </ul>
       )}
       <CommentBox postId={post._id} onCommentAdded={onCommentAdded} />
-    </div>
+    </motion.article>
   );
 }
