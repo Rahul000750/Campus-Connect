@@ -391,9 +391,15 @@ app.post(['/post', '/posts/create'], authMiddleware, async (req, res) => {
     const { text, caption, imageUrl = '', image = '' } = req.body;
     const finalCaption = String(caption || text || '').trim();
     const finalImage = String(image || imageUrl || '').trim();
+    // #region agent log
+    fetch('http://127.0.0.1:7501/ingest/66c0d595-13f9-432c-adf1-cbc80eb0fcac',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'da6b06'},body:JSON.stringify({sessionId:'da6b06',runId:'upload-post-debug-1',hypothesisId:'H3_server_computed_final_caption_empty',location:'server/index.js:/post:entry',message:'Server received create post payload',data:{hasText:Boolean(text),hasCaption:Boolean(caption),finalCaptionLength:finalCaption.length,hasImage:Boolean(finalImage)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     if (!finalCaption && !finalImage) {
       return res.status(400).json({ message: 'Post caption or image is required' });
     }
+    // #region agent log
+    fetch('http://127.0.0.1:7501/ingest/66c0d595-13f9-432c-adf1-cbc80eb0fcac',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'da6b06'},body:JSON.stringify({sessionId:'da6b06',runId:'upload-post-debug-1',hypothesisId:'H4_model_requires_text_non_empty',location:'server/index.js:/post:beforeCreate',message:'Server creating post model',data:{textLength:finalCaption.length,captionLength:finalCaption.length,hasImage:Boolean(finalImage)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     const post = await Post.create({
       text: finalCaption,
       caption: finalCaption,
@@ -404,6 +410,9 @@ app.post(['/post', '/posts/create'], authMiddleware, async (req, res) => {
     await post.populate('author', 'name email avatarUrl');
     res.status(201).json(post);
   } catch (err) {
+    // #region agent log
+    fetch('http://127.0.0.1:7501/ingest/66c0d595-13f9-432c-adf1-cbc80eb0fcac',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'da6b06'},body:JSON.stringify({sessionId:'da6b06',runId:'upload-post-debug-1',hypothesisId:'H5_server_validation_rejects_data_shape',location:'server/index.js:/post:catch',message:'Server failed creating post',data:{errorName:err?.name||null,errorMessage:err?.message||null,textPathError:err?.errors?.text?.message||null},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     res.status(500).json({ message: err.message || 'Server error' });
   }
 });
