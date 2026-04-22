@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import api from '../api';
+import api, { getFriendlyApiError } from '../api';
 import PageTransition from '../components/ui/PageTransition';
 import { useToast } from '../context/ToastContext';
 
@@ -34,17 +34,9 @@ export default function Register() {
       addToast('Account created successfully', 'success');
       navigate('/');
     } catch (error) {
-      const serverMsg = error.response?.data?.message;
-      const baseURL = api.defaults?.baseURL || 'unknown';
-      if (!serverMsg && error?.message === 'Network Error') {
-        const message = `Cannot reach the API at ${baseURL}. Start MongoDB, then start the API (port 5174). Restart the Vite dev server after changing proxy or env.`;
-        setErr(message);
-        addToast(message, 'error');
-      } else {
-        const message = serverMsg || error?.message || 'Registration failed';
-        setErr(message);
-        addToast(message, 'error');
-      }
+      const message = getFriendlyApiError(error, 'Registration failed');
+      setErr(message);
+      addToast(message, 'error');
     } finally {
       setLoading(false);
     }

@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { FiHome, FiLogOut, FiMenu, FiSearch, FiUser, FiX, FiMoon, FiSun } from 'react-icons/fi';
 import { useTheme } from '../context/ThemeContext';
-import api from '../api';
+import api, { shouldThrottleNetworkRequests } from '../api';
 import NotificationsDropdown from './NotificationsDropdown';
 
 export default function Navbar() {
@@ -31,13 +31,14 @@ export default function Navbar() {
   );
 
   useEffect(() => {
-    if (!token || !query.trim()) {
+    const searchTerm = query.trim();
+    if (!token || searchTerm.length < 2 || shouldThrottleNetworkRequests()) {
       setResults({ users: [], posts: [] });
       return;
     }
     const timeout = setTimeout(async () => {
       try {
-        const { data } = await api.get(`/search?q=${encodeURIComponent(query.trim())}`);
+        const { data } = await api.get(`/search?q=${encodeURIComponent(searchTerm)}`);
         setResults(data);
       } catch {
         setResults({ users: [], posts: [] });

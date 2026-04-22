@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import api from '../api';
+import api, { getFriendlyApiError, normalizeMediaUrl } from '../api';
 import PostCard from '../components/PostCard';
 import ImageUploader from '../components/ImageUploader';
 import PageTransition from '../components/ui/PageTransition';
@@ -60,7 +60,7 @@ export default function Profile() {
         const uploadRes = await api.post('/upload/profile', uploadData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
-        profilePic = uploadRes.data.imageUrl;
+        profilePic = normalizeMediaUrl(uploadRes.data.imageUrl);
         await api.put('/users/profile-photo', { imageUrl: profilePic });
       }
 
@@ -77,7 +77,7 @@ export default function Profile() {
       addToast('Profile updated', 'success');
       await load();
     } catch (error) {
-      addToast(error.response?.data?.message || 'Could not update profile', 'error');
+      addToast(getFriendlyApiError(error, 'Could not update profile'), 'error');
     } finally {
       setSavingProfile(false);
     }

@@ -7,6 +7,7 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      // Dev-only proxy. Production must use VITE_API_URL or a real reverse proxy for /api.
       '/api': {
         target: 'http://127.0.0.1:5174',
         changeOrigin: true,

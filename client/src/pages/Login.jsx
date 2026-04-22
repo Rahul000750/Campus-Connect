@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import api from '../api';
+import api, { getFriendlyApiError } from '../api';
 import PageTransition from '../components/ui/PageTransition';
 import { useToast } from '../context/ToastContext';
 
@@ -28,7 +28,7 @@ export default function Login() {
       addToast('Welcome back', 'success');
       navigate('/');
     } catch (error) {
-      const message = error.response?.data?.message || 'Login failed';
+      const message = getFriendlyApiError(error, 'Login failed');
       setErr(message);
       addToast(message, 'error');
     } finally {
