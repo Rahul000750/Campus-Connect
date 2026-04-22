@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import api from '../api';
+import api, { getFriendlyApiError, normalizeMediaUrl } from '../api';
 import PostCard from '../components/PostCard';
 import Sidebar from '../components/Sidebar';
 import ImageUploader from '../components/ImageUploader';
@@ -38,9 +38,6 @@ export default function Home() {
     if (!text.trim() && !postImageFile) return;
     setPosting(true);
     setErr('');
-    // #region agent log
-    fetch('http://127.0.0.1:7501/ingest/66c0d595-13f9-432c-adf1-cbc80eb0fcac',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'da6b06'},body:JSON.stringify({sessionId:'da6b06',runId:'upload-post-debug-1',hypothesisId:'H1_frontend_payload_missing_text',location:'client/src/pages/Home.jsx:createPost:start',message:'Create post started from UI',data:{captionLength:text.trim().length,hasImageFile:Boolean(postImageFile)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     try {
       let imageUrl = '';
       if (postImageFile) {
@@ -49,14 +46,8 @@ export default function Home() {
         const uploadRes = await api.post('/upload/post', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
-        imageUrl = uploadRes.data.imageUrl;
-        // #region agent log
-        fetch('http://127.0.0.1:7501/ingest/66c0d595-13f9-432c-adf1-cbc80eb0fcac',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'da6b06'},body:JSON.stringify({sessionId:'da6b06',runId:'upload-post-debug-1',hypothesisId:'H2_upload_ok_but_create_payload_invalid',location:'client/src/pages/Home.jsx:createPost:afterUpload',message:'Post image upload finished',data:{hasImageUrl:Boolean(imageUrl),imageUrlPrefix:imageUrl?imageUrl.slice(0,40):''},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
+        imageUrl = normalizeMediaUrl(uploadRes.data.imageUrl);
       }
-      // #region agent log
-      fetch('http://127.0.0.1:7501/ingest/66c0d595-13f9-432c-adf1-cbc80eb0fcac',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'da6b06'},body:JSON.stringify({sessionId:'da6b06',runId:'upload-post-debug-1',hypothesisId:'H1_frontend_payload_missing_text',location:'client/src/pages/Home.jsx:createPost:beforePostApi',message:'Sending create post API payload',data:{captionLength:text.trim().length,hasImageUrl:Boolean(imageUrl)},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       await api.post('/post', { caption: text.trim(), image: imageUrl });
       setText('');
       setPostImageFile(null);
@@ -64,10 +55,7 @@ export default function Home() {
       addToast('Post published successfully', 'success');
       await load();
     } catch (error) {
-      // #region agent log
-      fetch('http://127.0.0.1:7501/ingest/66c0d595-13f9-432c-adf1-cbc80eb0fcac',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'da6b06'},body:JSON.stringify({sessionId:'da6b06',runId:'upload-post-debug-1',hypothesisId:'H5_server_validation_rejects_data_shape',location:'client/src/pages/Home.jsx:createPost:catch',message:'Create post failed on client',data:{status:error?.response?.status||null,errorMessage:error?.response?.data?.message||error?.message||null},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
-      const message = error.response?.data?.message || 'Could not create post';
+      const message = getFriendlyApiError(error, 'Could not create post');
       setErr(message);
       addToast(message, 'error');
     } finally {

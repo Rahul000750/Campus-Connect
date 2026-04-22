@@ -30,9 +30,13 @@ const PORT = Number(process.env.PORT) || 5174;
 const uploadsRoot = path.join(__dirname, 'uploads');
 const profileUploadsDir = path.join(uploadsRoot, 'profiles');
 const postUploadsDir = path.join(uploadsRoot, 'posts');
+const isProduction = process.env.NODE_ENV === 'production';
 
 fs.mkdirSync(profileUploadsDir, { recursive: true });
 fs.mkdirSync(postUploadsDir, { recursive: true });
+
+// Ensure protocol/host are inferred correctly behind reverse proxies.
+app.set('trust proxy', true);
 
 // Keep it simple for local dev: allow frontend origin + Authorization header.
 app.use(
@@ -80,8 +84,27 @@ function createUploader(folderName) {
 const profileUpload = createUploader('profiles');
 const postUpload = createUploader('posts');
 
+function normalizeBaseUrl(value) {
+  return String(value || '').trim().replace(/\/+$/, '');
+}
+
+function getRequestOrigin(req) {
+  const forwardedProto = String(req.headers['x-forwarded-proto'] || '')
+    .split(',')[0]
+    .trim()
+    .toLowerCase();
+  const protocol = forwardedProto || req.protocol || 'http';
+  const host = req.get('host');
+  const safeProtocol = isProduction && protocol === 'http' ? 'https' : protocol;
+  return `${safeProtocol}://${host}`;
+}
+
 function getPublicFileUrl(req, folderName, filename) {
-  const base = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`;
+  const configured = normalizeBaseUrl(process.env.PUBLIC_BASE_URL);
+  let base = configured || getRequestOrigin(req);
+  if (isProduction && base.startsWith('http://')) {
+    base = base.replace(/^http:\/\//i, 'https://');
+  }
   return `${base}/uploads/${folderName}/${filename}`;
 }
 
@@ -391,15 +414,9 @@ app.post(['/post', '/posts/create'], authMiddleware, async (req, res) => {
     const { text, caption, imageUrl = '', image = '' } = req.body;
     const finalCaption = String(caption || text || '').trim();
     const finalImage = String(image || imageUrl || '').trim();
-    // #region agent log
-    fetch('http://127.0.0.1:7501/ingest/66c0d595-13f9-432c-adf1-cbc80eb0fcac',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'da6b06'},body:JSON.stringify({sessionId:'da6b06',runId:'upload-post-debug-1',hypothesisId:'H3_server_computed_final_caption_empty',location:'server/index.js:/post:entry',message:'Server received create post payload',data:{hasText:Boolean(text),hasCaption:Boolean(caption),finalCaptionLength:finalCaption.length,hasImage:Boolean(finalImage)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     if (!finalCaption && !finalImage) {
       return res.status(400).json({ message: 'Post caption or image is required' });
     }
-    // #region agent log
-    fetch('http://127.0.0.1:7501/ingest/66c0d595-13f9-432c-adf1-cbc80eb0fcac',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'da6b06'},body:JSON.stringify({sessionId:'da6b06',runId:'upload-post-debug-1',hypothesisId:'H4_model_requires_text_non_empty',location:'server/index.js:/post:beforeCreate',message:'Server creating post model',data:{textLength:finalCaption.length,captionLength:finalCaption.length,hasImage:Boolean(finalImage)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     const post = await Post.create({
       text: finalCaption,
       caption: finalCaption,
@@ -410,9 +427,6 @@ app.post(['/post', '/posts/create'], authMiddleware, async (req, res) => {
     await post.populate('author', 'name email avatarUrl');
     res.status(201).json(post);
   } catch (err) {
-    // #region agent log
-    fetch('http://127.0.0.1:7501/ingest/66c0d595-13f9-432c-adf1-cbc80eb0fcac',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'da6b06'},body:JSON.stringify({sessionId:'da6b06',runId:'upload-post-debug-1',hypothesisId:'H5_server_validation_rejects_data_shape',location:'server/index.js:/post:catch',message:'Server failed creating post',data:{errorName:err?.name||null,errorMessage:err?.message||null,textPathError:err?.errors?.text?.message||null},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     res.status(500).json({ message: err.message || 'Server error' });
   }
 });

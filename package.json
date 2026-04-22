@@ -1,4 +1,14 @@
 {
+  "name": "campus-connect",
+  "private": true,
+  "scripts": {
+    "start": "npm --prefix server start",
+    "start:server": "npm --prefix server start",
+    "build:client": "npm --prefix client run build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "@google/generative-ai": "^0.24.1"
   }

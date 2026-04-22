@@ -1,8 +1,30 @@
 import axios from 'axios';
 
+const NETWORK_ERROR_COOLDOWN_MS = 10_000;
+let lastNetworkErrorAt = 0;
+
+function isAbsoluteHttpUrl(value) {
+  return /^https?:\/\//i.test(String(value || '').trim());
+}
+
+function normalizeApiBaseUrl(rawValue) {
+  const value = String(rawValue || '').trim();
+  if (!value) return '/api';
+
+  if (!isAbsoluteHttpUrl(value)) {
+    return value.startsWith('/') ? value : `/${value}`;
+  }
+
+  // Avoid mixed-content requests when frontend is served via HTTPS.
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:' && value.startsWith('http://')) {
+    return value.replace(/^http:\/\//i, 'https://');
+  }
+  return value.replace(/\/+$/, '');
+}
+
 // In dev, same-origin /api is proxied to the Express server (see vite.config.js).
 // Fallback to `/api` keeps local and same-origin deployments working even if env is unset.
-const API = import.meta.env.VITE_API_URL || '/api';
+const API = normalizeApiBaseUrl(import.meta.env.VITE_API_URL);
 
 const api = axios.create({
   baseURL: API,
@@ -10,9 +32,6 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  // #region agent log
-  fetch('http://127.0.0.1:7501/ingest/66c0d595-13f9-432c-adf1-cbc80eb0fcac',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ac4137'},body:JSON.stringify({sessionId:'ac4137',runId:'cleanup-baseline',hypothesisId:'H5_client_requests_reach_api_layer',location:'client/src/api.js:request_interceptor',message:'Client request interceptor fired',data:{method:config.method||null,url:config.url||null,baseURL:config.baseURL||API,hasAuthHeader:!!config.headers?.Authorization},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -21,18 +40,42 @@ api.interceptors.request.use((config) => {
 });
 
 api.interceptors.response.use(
-  (response) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7501/ingest/66c0d595-13f9-432c-adf1-cbc80eb0fcac',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ac4137'},body:JSON.stringify({sessionId:'ac4137',runId:'cleanup-baseline',hypothesisId:'H6_client_receives_api_responses',location:'client/src/api.js:response_interceptor_success',message:'Client response interceptor success',data:{method:response?.config?.method||null,url:response?.config?.url||null,status:response?.status||null},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-    return response;
-  },
+  (response) => response,
   (error) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7501/ingest/66c0d595-13f9-432c-adf1-cbc80eb0fcac',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ac4137'},body:JSON.stringify({sessionId:'ac4137',runId:'cleanup-baseline',hypothesisId:'H6_client_receives_api_responses',location:'client/src/api.js:response_interceptor_error',message:'Client response interceptor error',data:{method:error?.config?.method||null,url:error?.config?.url||null,status:error?.response?.status||null,code:error?.code||null,errorMessage:error?.message||null},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
+    if (error?.message === 'Network Error') {
+      lastNetworkErrorAt = Date.now();
+    }
     return Promise.reject(error);
   }
 );
+
+export function getApiBaseUrl() {
+  return api.defaults?.baseURL || '/api';
+}
+
+export function shouldThrottleNetworkRequests() {
+  if (!lastNetworkErrorAt) return false;
+  return Date.now() - lastNetworkErrorAt < NETWORK_ERROR_COOLDOWN_MS;
+}
+
+export function getFriendlyApiError(error, fallbackMessage) {
+  const serverMessage = error?.response?.data?.message;
+  if (serverMessage) return serverMessage;
+  if (error?.message === 'Network Error') {
+    const baseURL = getApiBaseUrl();
+    return `Cannot reach the API at ${baseURL}. Check VITE_API_URL and your production API deployment.`;
+  }
+  return fallbackMessage;
+}
+
+export function normalizeMediaUrl(url) {
+  const value = String(url || '').trim();
+  if (!value) return '';
+  if (!isAbsoluteHttpUrl(value)) return value;
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:' && value.startsWith('http://')) {
+    return value.replace(/^http:\/\//i, 'https://');
+  }
+  return value;
+}
 
 export default api;
